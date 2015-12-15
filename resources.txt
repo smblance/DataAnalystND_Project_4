@@ -1,0 +1,8 @@
+Dataset:
+https://archive.ics.uci.edu/ml/datasets/Adult
+
+R reference:
+https://cran.r-project.org/doc/contrib/Short-refcard.pdf
+
+R cheatsheets:
+https://www.rstudio.com/resources/cheatsheets/

@@ -1,0 +1,360 @@
+---
+title: "Project 4 - Udacity"
+author: "Mark Ayzenshtadt"
+date: "15 December 2015"
+output: html_document
+---
+The data is extracted from 1994 US census database and was found at the UCI ML repository:
+https://archive.ics.uci.edu/ml/datasets/Adult<br />
+We will try to analyze how different sociodemographical indicators affect the likelihood of a person earning more than 50,000$ a year.<br />
+
+##Section 1: Exploration.
+The comments about the chunk are given before the chunk.<br />
+
+First, let's import the dataset and format it a bit for easier exploration.<br />
+Initialize, read file, assign column names.<br />
+Change actual NA values to proper NA object, and drop unused levels.<br />
+```{r echo=TRUE, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(reshape2)
+library(scales)
+
+adult <- read.csv('~/DataAnalyst/Projects/DataAnalystND_Project_4/adult/adult.data', header = F)
+names(adult) <- c('age','workclass','fnlwgt','education','education_num',
+                  'marital_status','occupation','relationship','race','sex',
+                  'capital_gain','capital_loss','hours_per_week','native_country','income')
+levels(adult$income) <- c('low','high')
+adult[adult ==' ?'] <- NA
+adult <- droplevels(adult)
+
+#This addition to ggplot plots will set alpha of the legend to 100% for better readability.
+fix_alpha <- guides(colour = guide_legend(override.aes = list(alpha = 1)))
+```
+
+Arrange education levels by the provided 'education_num' variable.<br />
+Arrange other factors by frequency of high salary(High Salary Ratio, HSR) - from lowest to highest.<br />
+Remove unneeded columns.<br />
+Group very low frequency workclass levels together.<br />
+Remove spaces from factor levels.
+```{r echo=FALSE}
+#adult_by['variable'] - dataframe showing high salary ratio for each level of the variable.
+adult_by <- list()
+
+f1 <- function(x) x[1]
+adult_by[['education']] <- adult %>%
+  group_by(education) %>%
+  summarize(num = f1(education_num)) %>%
+  arrange(num)
+adult$education <- ordered(adult$education, levels = adult_by[['education']]$education)
+adult <- subset(adult, select = -c(fnlwgt,education_num,capital_gain,capital_loss))
+adult$workclass <- factor(gsub('Never-worked','No_pay',adult$workclass))
+adult$workclass <- factor(gsub('Without-pay','No_pay',adult$workclass))
+
+#remove spaces in levels
+for (col in colnames(adult)) {
+  if (is.factor(adult[[col]])) {
+    levels(adult[[col]]) <- gsub(' ', '', levels(adult[[col]]))
+  }
+}
+for (col in names(adult[,-11])) {
+  adult_by[[col]]<- adult %>%
+    group_by_(col) %>%
+    summarise(high_salary_ratio = sum(income == 'high')/n(),
+              n = n()) %>%
+    arrange(high_salary_ratio)
+  #arrange levels of the factor variables by high salary ratio
+  if (!(col %in% c('age', 'hours_per_week','education'))) {
+  adult[[col]] <- ordered(adult[[col]], adult_by[[col]][[col]])
+  }
+}
+
+rm(f1, col)
+```
+
+I'll refer to high salary ratio of a group (number of people having high income divided by group size) as **HSR**.<br />
+We've stored HSR's for variable levels for each variable in the adult_by[[variable]] list.<br />
+Let's look how each variable affects the income:<br />
+**age:** HSR increases from 16 to 50, then declines. For some reason, ages 79 and 83 have very high HSR.<br />
+**workclass:** By far most people work in Private sector which also has the lowest HSR. Being Self-emp-inc (probably company owners) is paid very good, working for federal government is also paid well.<br />
+**education:** having high education definitely increases income.<br />
+**marital_status:** married-civ-spouse and married-af-spouse have the highest HSR.<br />
+About 1/3 of the respondents were never married, and they have the lowest HSR.<br />
+**occupation:** About 25% of the data are Prof-speciality and Exec-managerial - two highest HSR categories.<br /> Priv-house-serv occupation has HSR of only 0.6%.<br />
+**relationship:**  Wives and Husbands have very high HSR. Wives have even higher HSR than Husbands, despite that women have HSR of 11% and men of 30.5%.<br />
+**race:** Black and Native American have half as high HSR than White and Asian.<br />
+**sex:** For some reason, there are twice as many men as women in the survey, and for men the HSR is 3 times higher than HSR for women.<br />
+**hours per week:** 0 to 25 hpw - HSR decreases a bit, 25-60 - increases, and then decreases, probably because the top-paid executives don't work long hours.<br />
+**native_country:** Caribbean and Latin-American have the lowest HSR. US-natives are somewhere in the middle, and the top of the list cannot be attributed to some region in particualar.<br />
+90% of the people are US-natives.
+```{r}
+for (name in names(adult[,-11])) {
+  print(adult_by[[name]])
+}
+```
+
+We've talked about age, but the relationship is seen better in the graph.
+```{r}
+ggplot(data = adult_by[['age']], aes(x = age, y = high_salary_ratio)) +
+  geom_line()
+```
+
+Let's break the age-hsr by education and sex.
+```{r}
+adult_by_age_sex<- adult %>%
+    group_by(age, sex) %>%
+    summarise(high_salary_ratio = sum(income == 'high')/n(),
+              n = n()) %>%
+    arrange(age, sex)
+    
+ggplot(adult_by_age_sex, aes(x = age, y = high_salary_ratio, color = sex)) +
+  geom_line()
+  
+adult_by_age_education<- adult %>%
+    group_by(age, education) %>%
+    summarise(high_salary_ratio = sum(income == 'high')/n(),
+              n = n()) %>%
+    arrange(age, education)
+
+ggplot(adult_by_age_education, aes(x = age, y = high_salary_ratio, color = education)) +
+  geom_line(size = 2)
+    
+ggplot(adult_by_age_education, aes(x = age, y = high_salary_ratio, color = education)) +
+  geom_point(size = 5)
+```
+
+Women are younger than men.
+```{r}
+ggplot(adult, aes(x = sex, y = age, fill = sex)) +
+  geom_violin()
+```
+
+As we've seen, high-income people are older.
+```{r}
+ggplot(adult, aes(x = income, y = age, fill = income)) +
+  geom_violin()
+```
+
+The HPW distribution looks somewhat normal. Hard to say, but looks like most of the high income comes from high HPW.
+```{r}
+ggplot(data = adult, aes(x = hours_per_week, fill = income)) +
+  geom_histogram(binwidth = 2) +
+  coord_cartesian(ylim = c(0,3000))
+ggplot(data = adult, aes(x = hours_per_week, fill = income)) +
+  geom_histogram(binwidth = 2, position = 'dodge') +
+  coord_cartesian(ylim = c(0,3000))
+```
+
+Working about 60 hpw is paid best, working more - a little less.<br />
+It's interesting that the slope of the curve around the 60 hpw is similar on both sides.
+```{r}
+ggplot(data = adult_by[['hours_per_week']], aes(x = hours_per_week, y = high_salary_ratio)) +
+  geom_line() +
+  geom_smooth()
+```
+
+Let's see how much people with different education work.
+There's a definite curve in the mean hpw (red diamonds).
+```{r}
+ggplot(adult, aes(x = education, y = hours_per_week, fill = education)) +
+  geom_boxplot() +
+  stat_summary(fun.y=mean, colour="darkred", geom="point", shape=18, size=3, show_guide = FALSE)
+```
+
+Most of the people are HS-grads, Some-college or Barchelors. Nothing particularly interesting about the races.
+```{r}
+ggplot(data = adult, aes(x = education, fill = race)) +
+  geom_histogram()
+```
+
+HSR for men with high education is very high.
+```{r}
+ggplot(data = adult, aes(x = education, fill = income)) +
+  geom_histogram() +
+  facet_wrap(~sex, ncol = 1)
+```
+
+As we've already seen, people with better education are older. No surprise here.<br />
+People who have have average education have very high age difference between high and low income.
+```{r}
+ggplot(data = adult, aes(x = education, y = age, fill = income)) +
+  geom_boxplot()
+```
+
+We see that people of the lower education categories (from preschool to about 9th grade) are older than the subsequent categories. <br />
+That is probably because these people are most likely dropouts (and they could drop out a while ago), while  people with 10th grade education or higher could be still studying (we have respondents of age 16+ in the survey).<br />
+Men with lower education are younger than women with same education, and the opposite is true for higher education.
+```{r}
+ggplot(data = adult, aes(x = education, y = age, fill = sex)) + 
+  geom_boxplot()
+```
+
+High-income people on average work 6.6 more hours_per_week than low-income.
+```{r}
+by(adult$hours_per_week,adult$income, mean)
+ggplot(data = adult, aes(x = income, y = hours_per_week)) +
+  geom_boxplot() +
+  stat_summary(fun.y=mean, colour="darkred", geom="point", shape=18, size=3,show_guide = FALSE)
+```
+
+High-income people are on average 7.5 years older.
+```{r}
+by(adult$age,adult$income, mean)
+ggplot(data = adult, aes(x = income, y = age)) +
+  geom_boxplot() +
+  stat_summary(fun.y=mean, colour="darkred", geom="point", shape=18, size=3,show_guide = FALSE)
+```
+
+Most of the husbands and wives(highest HSR relationships) are married-civ-spouse(highest HSR marital status).
+```{r}
+ggplot(adult, aes(x = relationship, fill = marital_status)) +
+  geom_histogram()
+ggplot(adult, aes(x = marital_status, fill = relationship)) +
+  geom_histogram()
+```
+
+As people become older, they tend to either marry or become widowed and divorce less:
+```{r}
+ggplot(data = adult, aes(x = age, fill = marital_status)) +
+  geom_histogram(binwidth = 1)
+```
+
+Most of the younger people are children.<br />
+As we've seen, number of husbands is much higher than number of wives.<br />
+```{r}
+ggplot(data = adult, aes(x = age, fill = relationship)) +
+  geom_histogram(binwidth = 1)
+```
+
+Let's break it by sexes.<br />
+There are way more married men than women.<br />
+The histogram for women is much more skewed to the left than for men.
+```{r}
+ggplot(data = adult, aes(x = age, fill = relationship)) +
+  geom_histogram(binwidth = 1) + 
+  facet_wrap(~sex, ncol = 1)
+```
+
+We see that in Own-child and Husband/Wife relationships women are older, and in other relationships women are younger.
+```{r}
+ggplot(data = adult, aes(x = relationship, y = age, fill = sex)) +
+  geom_boxplot()
+```
+
+We have 2 male wives and 1 female husband. These are probably errors.
+```{r}
+nrow(subset(adult, sex == 'Male' & relationship == 'Wife'))
+nrow(subset(adult, sex == 'Female' & relationship == 'Husband'))
+```
+
+Older people and women work less.
+```{r}
+ggplot(data = adult, aes(x = age, y = hours_per_week, color = sex)) +
+  geom_jitter(alpha = 0.5) +
+  fix_alpha
+```
+
+The majority of high-income people come from 2 highest-paid occupations.
+```{r}
+ggplot(data = adult, aes(x = occupation, fill = income)) +
+  geom_histogram()
+ggplot(data = adult, aes(x = occupation, fill = income)) +
+  geom_histogram(position = 'dodge')
+```
+
+The people in self-employed workclasses are mostly men.<br />
+NA category has very high women/men ratio.
+```{r}
+ggplot(data = adult, aes(x = workclass, fill = sex)) +
+  geom_bar(position = 'dodge')
+```
+
+The majority of the difference in male-female populations is due to 'white' race.<br />
+Black race has very high woman ratio.
+```{r}
+ggplot(data = adult, aes(x = race, fill = sex)) +
+  geom_histogram(position = 'dodge')
+```
+
+Let's see which occupations are dominated by either sex.<br />
+Remeber, that the occupations are arranged by HSR.<br />
+The highest female ratio is in the lowest-paid occupation('Priv-house-serv').<br />
+Other female occupations: Adm-clerical and Other-service.<br />
+Male occupation: Handlers-cleaners, Armed-forces, Transport-moving, Craft-repair, Protective-serv.<br />
+Pretty much as expected.
+```{r}
+occupation_by_sex = adult %>%
+  group_by(occupation) %>%
+  summarise(female_ratio = sum(sex == 'Female')/n(),
+            n = n())
+
+ggplot(data = occupation_by_sex, aes(x = occupation, y = female_ratio)) +
+  geom_bar(stat='identity')
+```
+
+The countries are ordered by HSR.<br />
+In both high-HSR and low-HSR countries there are countries with many men(Mexico, India) or women(Dominican Republic, Germany), and countries with more younger(Guatemala, Taiwan) or older(Puerto-Rico, Italy) people.<br />
+Thus, there is not much new information here.
+```{r}
+ggplot(data = adult, aes(x = age, fill = sex)) +
+  geom_histogram(binwidth = 2) +
+  facet_wrap(~native_country, scales = 'free_y')
+```
+
+##Section 2: Final Plots and Summary
+
+###Plot One
+```{r}
+ggplot(data = adult, aes(x = age, fill = relationship)) +
+  geom_histogram(binwidth = 1) + 
+  facet_wrap(~sex, ncol = 1) +
+  xlab('Age, years') +
+  ylab('Number of Respondents') +
+  ggtitle('Histogram of Ages, by Sex and relationship')
+```
+
+###Description One
+The distribution of women looks very different to the distribution of men.<br />
+There are less women than men and they are younger.<br />
+The histograms of all the relationships for men and women, except husband and wife, look the same.<br />
+
+###Plot Two
+```{r}
+ggplot(data = adult_by[['hours_per_week']], aes(x = hours_per_week, y = high_salary_ratio)) +
+  geom_line() +
+  geom_smooth() +
+  xlab('Hours per week working') +
+  ylab('High salary ratio (frequency of high-income people)') +
+  ggtitle('Relation of income to working hours per week')
+```
+
+###Description Two
+The lowest HSR is at 0-25 hpw, and after that HSR rises up to about 60 hpw.<br />
+But after 60 hpw the average hsr decreases.<br />
+We see that people who work about 100 hours a week earn about the same ass people who work 40 hours.<br />
+
+###Plot Three
+```{r}
+ggplot(data = occupation_by_sex, aes(x = occupation, y = female_ratio)) +
+  geom_bar(stat='identity') +
+  scale_y_continuous(labels = percent) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ylab('Percentage of females in occupation') +
+  xlab('Occupation') +
+  ggtitle('Occupations by gender')
+```
+
+###Description Three
+Here we can see which professions are dominated by either gender.<br />
+The occupations are ordered by HSR (leftmost occupation is worst-paid).<br />
+The occupations that have more women than others: Priv-House-Serv(lowest-paid occupation), Adm-clerical and Other-service.<br />
+Male occupations: Handlers-cleaners, Armed-forces, Transport-moving, Craft-repair, Protective-serv.<br />
+
+## Section 3: Reflection
+The dataset has very interesting information that characterizes the respondents in different sociodemographical ways. Nevertheless, we can say with fair amount of certainty, that the dataset is not representative of the US population, for example by gender and race distributions.<br />
+In the dataset, women and black/native americans are paid much less than men and white/asian people. This does not necessarily imply discrimination, but is suspicious.<br />
+People originating from different countries differ in income, and most of the low-income countries are in Latin America. Most of the high-income countries are rich and developed, although it is surprising to see Cambodia, Yugoslavia and even Iran on the top of the list. Anyway, 90% of the people are US-natives, so this variable doesn't give too much information.<br />
+
+The dataset mostly contains categorical variables, having more numeric variables would be interesting.<br />
+Mainly, if our dependent variable (income) was numeric, it would open more opportunities for exploration.<br />
+It would be also very interesting to have the same data for a different year to examine the trends.<br />

@@ -1,8 +1,19 @@
 Dataset:
 https://archive.ics.uci.edu/ml/datasets/Adult
+https://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.names
 
 R reference:
 https://cran.r-project.org/doc/contrib/Short-refcard.pdf
 
 R cheatsheets:
 https://www.rstudio.com/resources/cheatsheets/
+
+Correlation matrix:
+http://www.sthda.com/english/wiki/ggplot2-quick-correlation-matrix-heatmap-r-software-and-data-visualization
+
+Correlation measurement:
+http://stats.stackexchange.com/questions/119835/correlation-between-a-nominal-iv-and-a-continuous-dv-variable/124618#124618
+http://stats.stackexchange.com/questions/108007/correlations-with-categorical-variables
+
+Plotting heatmap:
+https://learnr.wordpress.com/2010/01/26/ggplot2-quick-heatmap-plotting/
